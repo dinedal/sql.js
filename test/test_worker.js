@@ -3,6 +3,20 @@ var path = require("path");
 
 exports.test = function(notUsed, assert, done) {
   var worker = new Worker(path.join(__dirname, "../js/worker.sql.js"));
+  // Node versions later the v0.10 do not return the same kind of object as before through workerjs
+  // This function allows getting the values of the object regardless of Node version
+  var obj_values = function(o) {
+    if (typeof(o.byteLength) != "undefined") {
+      return o;
+    }
+    var v = [];
+    for (var p in o) {
+      if (typeof(o[p]) != "function") {
+        v.push(o[p]);
+      }
+    }
+    return v;
+  }
   worker.onmessage = function(event) {
     var data = event.data;
     assert.strictEqual(data.id, 1, "Return the given id in the correct format");
@@ -18,13 +32,13 @@ exports.test = function(notUsed, assert, done) {
       assert.deepEqual(row.columns, ['num', 'str', 'hex'], 'Reading column names');
       assert.strictEqual(row.values[0][0], 1, 'Reading number');
       assert.strictEqual(row.values[0][1], 'a', 'Reading string');
-      assert.deepEqual(Array.from(row.values[0][2]), [0x00, 0x42], 'Reading BLOB');
+      assert.deepEqual(Array.from(obj_values(row.values[0][2])), [0x00, 0x42], 'Reading BLOB');
 
       worker.onmessage = function(event) {
         var data = event.data;
 
         if (!data.finished) {
-          data.row.hex = Array.from(data.row.hex);
+          data.row.hex = Array.from(obj_values(data.row.hex));
           assert.deepEqual(data.row,
                            {num:1, str:'a', hex: [0x00, 0x42]},
                            "Read row from db.each callback");
